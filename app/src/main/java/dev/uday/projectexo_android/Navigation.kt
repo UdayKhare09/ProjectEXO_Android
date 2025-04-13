@@ -18,9 +18,11 @@ object NavigationRoutes {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    // Set up the navigation host with no animation
+
     NavHost(
         navController = navController,
-        startDestination = NavigationRoutes.LOGIN
+        startDestination = NavigationRoutes.LOGIN,
     ) {
         composable(NavigationRoutes.LOGIN) {
             LoginScreen(

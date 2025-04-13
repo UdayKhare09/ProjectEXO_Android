@@ -1,16 +1,14 @@
 package ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,6 +26,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.uday.projectexo_android.net.ClientSocket
 import dev.uday.projectexo_android.net.handlers.MsgHandler
+import kotlinx.coroutines.launch
 
 object Chat {
     // Chat message data class
@@ -64,190 +63,175 @@ object Chat {
         }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun ChatScreen(onLogout: () -> Unit, onBack: () -> Unit) {
         var messageInput by remember { mutableStateOf("") }
-        val selectedChat = remember { currentChat }
-        val chatMessages = messages[selectedChat.value] ?: emptyList()
-
+        val selectedChat = remember { mutableStateOf("general") }
         val listState = rememberLazyListState()
+        val drawerState = rememberDrawerState(DrawerValue.Closed)
+        val scope = rememberCoroutineScope()
 
-        LaunchedEffect(chatMessages.size) {
-            if (chatMessages.isNotEmpty()) {
-                listState.animateScrollToItem(chatMessages.size - 1)
+        // Auto-scroll to bottom when new messages arrive
+        val currentMessages = messages[selectedChat.value] ?: emptyList()
+        LaunchedEffect(currentMessages.size) {
+            if (currentMessages.isNotEmpty()) {
+                listState.animateScrollToItem(currentMessages.size - 1)
             }
         }
 
-        // File chooser dialog
-
-        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-            // Header remains unchanged...
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Back button
-                Button(
-                    onClick = onBack,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = {
+                ModalDrawerSheet(
+                    modifier = Modifier.width(280.dp)
                 ) {
-                    Text("Back")
-                }
-
-                // Title
-                Text(
-                    text = "Secure Chat",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-
-                // Logout button
-                Button(
-                    onClick = onLogout,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                ) {
-                    Text("Logout")
-                }
-            }
-
-            Row(modifier = Modifier.fillMaxSize()) {
-                // Online users panel remains unchanged...
-                Column(
-                    modifier = Modifier.weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = "Chats",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-
-                    // General chat option
-                    ChatListItem(
-                        name = "general",
-                        isSelected = selectedChat.value == "general",
-                        onClick = { selectedChat.value = "general" }
-                    )
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                    Text(
-                        text = "Online Users",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(vertical = 4.dp)
-                    )
-
-                    LazyColumn {
-                        // Display online users except the current user
-                        items(onlineUsers.filter { it != ClientSocket.username }) { user ->
-                            ChatListItem(
-                                name = user,
-                                isSelected = selectedChat.value == user,
-                                onClick = {
-                                    selectedChat.value = user
-                                    // Load chat history for the selected user
-                                    if (!messages.containsKey(user)) {
-                                        messages[user] = emptyList()
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                // ui.Chat panel
-                Column(
-                    modifier = Modifier.weight(3f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(8.dp))
-                        .padding(16.dp)
-                ) {
-                    // ui.Chat header and messages remain unchanged...
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .padding(16.dp)
                     ) {
                         Text(
-                            text = if (selectedChat.value == "general") "General Chat" else "Chat with ${selectedChat.value}",
+                            text = "Chats",
                             style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                    // ui.Chat messages
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.weight(1f)
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                    ) {
-                        items(chatMessages) { message ->
-                            MessageBubble(message)
-                            Spacer(modifier = Modifier.height(8.dp))
-                        }
-                    }
-
-                    // Modified input field area with attachment button
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Text input field
-                        OutlinedTextField(
-                            value = messageInput,
-                            onValueChange = { messageInput = it },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("Type a message...") },
-                            shape = RoundedCornerShape(24.dp),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.surface
-                            ),
-                            keyboardOptions = KeyboardOptions(
-                                imeAction = androidx.compose.ui.text.input.ImeAction.Send
-                            ),
-                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                                onSend = {
-                                    sendMsg(messageInput, selectedChat)
-                                    messageInput = "" // Clear input after sending
-                                }
-                            ),
-                            singleLine = true
+                            modifier = Modifier.padding(vertical = 16.dp)
                         )
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp))
 
-                        // Send button
-                        Button(
+                        NavigationDrawerItem(
+                            label = { Text("General") },
+                            selected = selectedChat.value == "general",
                             onClick = {
-                                sendMsg(messageInput, selectedChat)
-                                messageInput = "" // Clear input after sending
+                                selectedChat.value = "general"
+                                scope.launch { drawerState.close() }
                             },
-                            shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier.height(56.dp)
-                        ) {
-                            Text("Send")
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Online Users",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        LazyColumn {
+                            items(onlineUsers) { user ->
+                                if (user != ClientSocket.username) {
+                                    NavigationDrawerItem(
+                                        label = { Text(user) },
+                                        selected = selectedChat.value == user,
+                                        onClick = {
+                                            selectedChat.value = user
+                                            if (!messages.containsKey(user)) {
+                                                messages[user] = emptyList()
+                                            }
+                                            scope.launch { drawerState.close() }
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
+                }
+            }
+        ) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                if (selectedChat.value == "general") "Group Chat"
+                                else selectedChat.value
+                            )
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "Open Drawer"
+                                )
+                            }
+                        },
+                        actions = {
+                            IconButton(onClick = onBack) {
+                                Icon(
+                                    imageVector = Icons.Default.ArrowBack,
+                                    contentDescription = "Back"
+                                )
+                            }
+                            Button(onClick = onLogout) {
+                                Text(
+                                    text = "Logout",
+                                    color = MaterialTheme.colorScheme.onErrorContainer,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    )
+                },
+                bottomBar = {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        tonalElevation = 3.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OutlinedTextField(
+                                value = messageInput,
+                                onValueChange = { messageInput = it },
+                                modifier = Modifier.weight(1f),
+                                placeholder = { Text("Type a message") },
+                                shape = RoundedCornerShape(24.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            FloatingActionButton(
+                                onClick = {
+                                    if (messageInput.isNotBlank()) {
+                                        sendMsg(messageInput, selectedChat)
+                                        messageInput = ""
+                                    }
+                                },
+                                containerColor = MaterialTheme.colorScheme.primary
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Send,
+                                    contentDescription = "Send Message"
+                                )
+                            }
+                        }
+                    }
+                }
+            ) { paddingValues ->
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(horizontal = 16.dp),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+
+                    items(currentMessages) { message ->
+                        MessageBubble(message)
+                    }
+
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
                 }
             }
         }

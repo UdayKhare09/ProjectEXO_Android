@@ -1,6 +1,8 @@
 package dev.uday.projectexo_android.net
 
+import android.util.Log
 import dev.uday.projectexo_android.net.handlers.PacketHandler
+import kotlinx.coroutines.CoroutineScope
 import java.io.*
 import java.net.Socket
 import java.security.KeyFactory
@@ -9,6 +11,11 @@ import java.security.KeyPairGenerator
 import java.security.PublicKey
 import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlin.math.ceil
+import kotlin.text.toInt
 
 class ClientSocket {
     companion object {
@@ -23,8 +30,20 @@ class ClientSocket {
         private var password: String = ""
         var onlineUsers = mutableListOf<String>()
 
+        // Connection state listeners
+        private val connectionListeners = mutableListOf<(Boolean) -> Unit>()
+
         @Volatile
         private var isConnected = false
+
+        fun addConnectionListener(listener: (Boolean) -> Unit) {
+            connectionListeners.add(listener)
+        }
+
+        private fun notifyConnectionChange(connected: Boolean) {
+            isConnected = connected
+            connectionListeners.forEach { it(connected) }
+        }
 
         fun init(username: String, password: String, host: String, port: String): Boolean {
             this.username = username
@@ -57,8 +76,6 @@ class ClientSocket {
                     return false
                 }
 
-                isConnected = true
-
                 // For normal operation, use longer timeout or none
                 socket?.soTimeout = 0
 
@@ -67,6 +84,7 @@ class ClientSocket {
                     startReceivingPacket()
                 }.start()
 
+                notifyConnectionChange(true)
                 return true
             } catch (e: Exception) {
                 println("Error during initialization: ${e.message}")
@@ -128,7 +146,7 @@ class ClientSocket {
                 // Get response
                 val response = dataInputStream?.readInt() ?: -1
 
-                println("Error during authentication: $response")
+                println("Auth response: $response")
 
                 return when (response) {
                     1 -> true // Success
@@ -149,18 +167,19 @@ class ClientSocket {
                 println("Cannot send packet: Not connected")
                 return
             }
+            Log.i("ClientSocket", "Sending packet of size: ${packet.size} bytes")
 
-            try {
-                // Based on server implementation, we need to encrypt and chunk data
-                val chunkSize = 240 // Server expects this size for RSA-2048
-                val totalChunks = Math.ceil(packet.size.toDouble() / chunkSize).toInt()
+            // Use a coroutine to perform the network operation
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val chunkSize = 240 // Server expects this size for RSA-2048
+                    val totalChunks = ceil(packet.size.toDouble() / chunkSize).toInt()
 
-                // Prepare and send header
-                cipher?.init(Cipher.ENCRYPT_MODE, serverPublicKey)
-                val header = "SIZE:${packet.size};CHUNKS:$totalChunks".toByteArray()
-                val encryptedHeader = cipher?.doFinal(header) ?: return
+                    // Prepare and send header
+                    cipher?.init(Cipher.ENCRYPT_MODE, serverPublicKey)
+                    val header = "SIZE:${packet.size};CHUNKS:$totalChunks".toByteArray()
+                    val encryptedHeader = cipher?.doFinal(header) ?: return@launch
 
-                synchronized(dataOutputStream!!) {
                     dataOutputStream?.writeInt(encryptedHeader.size)
                     dataOutputStream?.write(encryptedHeader)
                     dataOutputStream?.flush()
@@ -168,7 +187,7 @@ class ClientSocket {
                     // Send chunks
                     for (i in 0 until totalChunks) {
                         val start = i * chunkSize
-                        val end = Math.min(packet.size, start + chunkSize)
+                        val end = packet.size.coerceAtMost(start + chunkSize)
                         val chunk = ByteArray(end - start)
                         System.arraycopy(packet, start, chunk, 0, end - start)
 
@@ -179,14 +198,14 @@ class ClientSocket {
                         dataOutputStream?.write(encryptedChunk)
                         dataOutputStream?.flush()
                     }
-                }
-            } catch (e: Exception) {
-                println("Error sending packet: ${e.message}")
-                e.printStackTrace()
+                } catch (e: Exception) {
+                    println("Error sending packet: ${e.message}")
+                    e.printStackTrace()
 
-                // Check if connection is lost
-                if (e is IOException) {
-                    disconnect()
+                    // Check if connection is lost
+                    if (e is IOException) {
+                        disconnect()
+                    }
                 }
             }
         }
@@ -243,14 +262,18 @@ class ClientSocket {
 
         fun disconnect() {
             try {
-                isConnected = false
                 dataInputStream?.close()
                 dataOutputStream?.close()
                 socket?.close()
                 println("Disconnected from server")
+                notifyConnectionChange(false)
             } catch (e: Exception) {
                 println("Error during disconnect: ${e.message}")
             }
+        }
+
+        fun isConnected(): Boolean {
+            return isConnected && socket?.isConnected == true && !socket?.isClosed!!
         }
     }
 }
