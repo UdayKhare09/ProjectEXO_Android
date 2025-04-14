@@ -117,6 +117,7 @@ object Chat {
         // Add AI to the online users list
         onlineUsers.add("AI")
         onlineUsers.addAll(users)
+        onlineUsers.remove("")
         // Ensure general channel exists
         if (!messages.containsKey("general")) {
             messages["general"] = emptyList()

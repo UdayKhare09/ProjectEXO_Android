@@ -1,9 +1,23 @@
 package dev.uday.projectexo_android.ui
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,10 +30,13 @@ fun FeatureScreen(
     onContinueToChat: () -> Unit,
     onLogout: () -> Unit
 ) {
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .verticalScroll(scrollState)
+            .padding(16.dp, 40.dp, 16.dp, 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Header with logo and logout button
@@ -28,17 +45,11 @@ fun FeatureScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Text(
-                    text = "ProjectEXO",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-            }
+            Text(
+                text = "ProjectEXO",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold
+            )
 
             Button(
                 onClick = onLogout,
@@ -51,7 +62,7 @@ fun FeatureScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
         // Welcome message
         Text(
@@ -60,53 +71,41 @@ fun FeatureScreen(
             fontWeight = FontWeight.Bold
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text = "Select a feature to get started",
             style = MaterialTheme.typography.bodyLarge
         )
 
-        Spacer(modifier = Modifier.height(48.dp))
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // Features grid
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            FeatureCard(
-                title = "Secure Chat",
-                description = "Start secure encrypted messaging",
-                onClick = onContinueToChat
-            )
+        // Features in a column for better mobile layout
+        FeatureCard(
+            title = "Secure Chat",
+            description = "Start secure encrypted messaging",
+            onClick = onContinueToChat
+        )
 
-            Spacer(modifier = Modifier.width(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            FeatureCard(
-                title = "AI Assistant",
-                description = "Chat with AI powered assistant",
-                onClick = {
-                    // For now, this also goes to chat
-                    // In future, you could direct to a specific AI chat
-                    onContinueToChat()
-                }
-            )
-        }
+        FeatureCard(
+            title = "AI Assistant",
+            description = "Chat with AI powered assistant",
+            onClick = {
+                // For now, this also goes to chat
+                // In future, you could direct to a specific AI chat
+                onContinueToChat()
+            },
+        )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
-            FeatureCard(
-                title = "File Sharing",
-                description = "Securely share files with others",
-                onClick = onContinueToChat
-            )
-
-            Spacer(modifier = Modifier.width(24.dp))
-        }
+        FeatureCard(
+            title = "File Sharing",
+            description = "Securely share files with others",
+            onClick = onContinueToChat
+        )
     }
 }
 
@@ -118,8 +117,8 @@ fun FeatureCard(
 ) {
     Card(
         modifier = Modifier
-            .width(220.dp)
-            .height(180.dp)
+            .fillMaxWidth()
+            .height(100.dp)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
@@ -129,34 +128,28 @@ fun FeatureCard(
             defaultElevation = 4.dp
         )
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = onClick,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
+            Column(
+                modifier = Modifier.weight(1f)
             ) {
-                Text("Select")
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
