@@ -23,7 +23,7 @@ ProjectEXO Android is a secure messaging application built with modern Android d
 - Authenticated connections
 
 ## Requirements 📋
-- Android 10 (API level 23) or higher
+- Android 10 or higher
 - Internet connection for server communication (only over internet)
 
 ## Getting Started 🚀
