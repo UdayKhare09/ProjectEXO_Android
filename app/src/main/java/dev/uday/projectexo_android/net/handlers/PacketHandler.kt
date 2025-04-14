@@ -12,6 +12,7 @@ class PacketHandler {
             when (packetType) {
                 0.toByte() -> handleBroadcastUserList(packetData)
                 1.toByte() -> MsgHandler.handleMsgPacket(packetData)
+                3.toByte() -> ImageHandler.handleImagePacket(packetData)
                 9.toByte() -> AIPackets.handleAIPacket(packetData)
                 else -> println("Unknown packet type: $packetType")
             }

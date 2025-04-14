@@ -1,5 +1,7 @@
 package dev.uday.projectexo_android.ui
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -7,10 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -58,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -78,10 +86,11 @@ object Chat {
     // First, update the ChatMessage data class to include timestamp
     data class ChatMessage(
         val sender: String,
-        val content: String,
+        val content: String = "",
         val isPrivate: Boolean,
         val isOutgoing: Boolean = false,
-        val timestamp: Long = System.currentTimeMillis()
+        val timestamp: Long = System.currentTimeMillis(),
+        val imageData: ByteArray? = null // Add this for image support
     )
 
     // Store messages by chat channel (user or "general")
@@ -124,13 +133,11 @@ object Chat {
         // Current messages - extract outside composable functions for better performance
         val currentMessages = messages[selectedChat.value] ?: emptyList()
 
-        // Only scroll to bottom on new message or chat change
         LaunchedEffect(currentMessages.size, selectedChat.value) {
             if (currentMessages.isNotEmpty()) {
-                // Use animateScrollToItem with custom duration for smoother scrolling
                 listState.animateScrollToItem(
                     index = 0,
-                    scrollOffset = 0
+                    scrollOffset = 0,
                 )
             }
         }
@@ -238,7 +245,8 @@ object Chat {
                 },
                 bottomBar = {
                     Surface(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth(),
                         tonalElevation = 3.dp
                     ) {
                         Row(
@@ -284,22 +292,22 @@ object Chat {
                         .fillMaxSize()
                         .padding(paddingValues)
                 ) {
-                    // Optimized LazyColumn
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
                         state = listState,
+                        reverseLayout = true, // Ensures the newest messages are at the bottom
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        reverseLayout = true,
-                        contentPadding = PaddingValues(bottom = 8.dp, top = 8.dp)
+                        contentPadding = PaddingValues(
+                            bottom = 8.dp, // Add padding for keyboard
+                            top = 8.dp
+                        )
                     ) {
                         itemsIndexed(
-                            items = currentMessages.asReversed(),
-                            // Use stable keys for better performance
+                            items = currentMessages.reversed(), // Reverse the list to show the newest messages at the bottom
                             key = { index, message -> "${message.timestamp}-${message.sender}-${index}" }
                         ) { _, message ->
-                            // Use key to prevent unnecessary recompositions
                             val messageKey = remember(message.timestamp, message.content) {
                                 "${message.timestamp}-${message.content}"
                             }
@@ -379,11 +387,21 @@ object Chat {
                         style = MaterialTheme.typography.bodyMedium
                     )
                 } else {
-                    Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = textColor
-                    )
+                    if (message.imageData != null) {
+                        // Display image
+                        Image(
+                            bitmap = BitmapFactory.decodeByteArray(message.imageData, 0, message.imageData.size).asImageBitmap(),
+                            contentDescription = "Image Message",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    } else {
+                        // Display text
+                        Text(
+                            text = message.content,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White
+                        )
+                    }
                 }
 
                 // Add timestamp
