@@ -1,4 +1,4 @@
-package ui
+package dev.uday.projectexo_android.ui
 
 import android.os.Handler
 import android.os.Looper
@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -52,7 +53,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                         serverList.addAll(ServerBroadcastReceiver.availableServers.values)
                     }
                     Thread.sleep(1000) // Update every second
-                } catch (e: InterruptedException) {
+                } catch (_: InterruptedException) {
                     break
                 }
             }
@@ -287,7 +288,7 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                                 )
                             }
                             if (serverList.indexOf(server) < serverList.size - 1) {
-                                Divider()
+                                HorizontalDivider()
                             }
                         }
                     }

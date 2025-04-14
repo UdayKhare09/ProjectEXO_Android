@@ -1,6 +1,6 @@
 package dev.uday.projectexo_android.net.handlers
 
-import ui.Chat
+import dev.uday.projectexo_android.ui.Chat
 
 class AIPackets {
     companion object{

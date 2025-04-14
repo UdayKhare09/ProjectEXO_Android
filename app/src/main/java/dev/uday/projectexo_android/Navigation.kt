@@ -5,9 +5,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import dev.uday.projectexo_android.net.ClientSocket
-import ui.Chat
-import ui.FeatureScreen
-import ui.LoginScreen
+import dev.uday.projectexo_android.ui.Chat
+import dev.uday.projectexo_android.ui.FeatureScreen
+import dev.uday.projectexo_android.ui.LoginScreen
 
 object NavigationRoutes {
     const val LOGIN = "login"
