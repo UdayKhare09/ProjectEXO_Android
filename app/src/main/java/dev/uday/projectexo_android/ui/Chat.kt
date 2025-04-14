@@ -1,8 +1,14 @@
 package dev.uday.projectexo_android.ui
 
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -81,11 +87,10 @@ import dev.uday.projectexo_android.net.handlers.ImageHandler
 import dev.uday.projectexo_android.net.handlers.MsgHandler
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 
 object Chat {
-    // Chat message data class
-    // Modify the ChatMessage data class to support images
-    // First, update the ChatMessage data class to include timestamp
     data class ChatMessage(
         val sender: String,
         val content: String = "",
@@ -336,9 +341,10 @@ object Chat {
                             items = currentMessages.reversed(), // Reverse the list to show the newest messages at the bottom
                             key = { index, message -> "${message.timestamp}-${message.sender}-${index}" }
                         ) { _, message ->
-                            val messageKey = remember(message.timestamp, message.content, message.imageData) {
-                                "${message.timestamp}-${message.content}-${message.imageData?.size}"
-                            }
+                            val messageKey =
+                                remember(message.timestamp, message.content, message.imageData) {
+                                    "${message.timestamp}-${message.content}-${message.imageData?.size}"
+                                }
 
                             key(messageKey) {
                                 MessageBubble(message = message)
@@ -368,6 +374,9 @@ object Chat {
 
     @Composable
     private fun MessageBubble(message: ChatMessage) {
+
+        val context = LocalContext.current
+        var showSaveDialog by remember { mutableStateOf(false) }
         // Colors and shapes calculated once and remembered
         val bubbleShape = remember(message.isOutgoing) {
             RoundedCornerShape(
@@ -432,20 +441,48 @@ object Chat {
                     )
                 } else {
                     if (message.imageData != null) {
-                        // Display image
-                        Image(
-                            bitmap = BitmapFactory.decodeByteArray(message.imageData, 0, message.imageData.size).asImageBitmap(),
-                            contentDescription = "Image Message",
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        // Display image with long press to save
+                        Box {
+                            Image(
+                                bitmap = BitmapFactory.decodeByteArray(
+                                    message.imageData, 0, message.imageData.size
+                                ).asImageBitmap(),
+                                contentDescription = "Image Message",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = { showSaveDialog = true })
+                            )
+
+                            if (showSaveDialog) {
+                                SaveImageDialog(
+                                    onDismiss = { showSaveDialog = false },
+                                    onSave = {
+                                        val timestamp = System.currentTimeMillis()
+                                        val fileName = "EXO_${message.sender}_${timestamp}.jpg"
+                                        val result =
+                                            saveImageToDCIM(context, message.imageData, fileName)
+
+                                        // Show toast based on result
+                                        val toastMessage = if (result) {
+                                            "Image saved to DCIM/EXO/$fileName"
+                                        } else {
+                                            "Failed to save image"
+                                        }
+                                        Toast.makeText(context, toastMessage, Toast.LENGTH_SHORT)
+                                            .show()
+                                        showSaveDialog = false
+                                    }
+                                )
+                            }
+                        }
                     } else {
                         // Display text
 
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = textColor,
-                            )
+                        Text(
+                            text = message.content,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = textColor,
+                        )
 
                     }
                 }
@@ -460,6 +497,25 @@ object Chat {
                 )
             }
         }
+    }
+
+    @Composable
+    private fun SaveImageDialog(onDismiss: () -> Unit, onSave: () -> Unit) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Save Image") },
+            text = { Text("Save this image to DCIM/EXO?") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = onSave) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     private fun sendMsg(messageInput: String, selectedChat: MutableState<String>) {
@@ -514,7 +570,10 @@ object Chat {
         return sdf.format(java.util.Date(timestamp))
     }
 
-    private fun parseMarkdownToAnnotatedString(markdown: String, defaultColor: Color): AnnotatedString {
+    private fun parseMarkdownToAnnotatedString(
+        markdown: String,
+        defaultColor: Color
+    ): AnnotatedString {
         // Cache results for identical inputs to avoid redundant parsing
         return buildAnnotatedString {
             withStyle(SpanStyle(color = defaultColor)) {
@@ -527,24 +586,30 @@ object Chat {
                                 append(line.substring(2))
                             }
                         }
+
                         line.startsWith("## ") -> {
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp)) {
                                 append(line.substring(3))
                             }
                         }
+
                         line.startsWith("### ") -> {
                             withStyle(SpanStyle(fontWeight = FontWeight.Bold, fontSize = 18.sp)) {
                                 append(line.substring(4))
                             }
                         }
+
                         line.startsWith("```") -> {
-                            withStyle(SpanStyle(
-                                fontFamily = FontFamily.Monospace,
-                                background = Color.DarkGray.copy(alpha = 0.2f)
-                            )) {
+                            withStyle(
+                                SpanStyle(
+                                    fontFamily = FontFamily.Monospace,
+                                    background = Color.DarkGray.copy(alpha = 0.2f)
+                                )
+                            ) {
                                 append(line.substring(3))
                             }
                         }
+
                         else -> append(parseLine(line))
                     }
 
@@ -571,6 +636,7 @@ object Chat {
                         }
                     }
                 }
+
                 line.contains("*") -> {
                     val parts = line.split("*")
                     for (i in parts.indices) {
@@ -583,9 +649,40 @@ object Chat {
                         }
                     }
                 }
+
                 line.startsWith("- ") -> append("• ${line.substring(2)}")
                 else -> append(line)
             }
+        }
+    }
+
+    private fun saveImageToDCIM(
+        context: Context,
+        imageBytes: ByteArray,
+        imageName: String
+    ): Boolean {
+        return try {
+            // Use MediaStore for Android 10 and above
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, imageName)
+                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+                put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/EXO")
+            }
+
+            val uri = context.contentResolver.insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            )
+
+            uri?.let {
+                context.contentResolver.openOutputStream(it)?.use { outputStream ->
+                    outputStream.write(imageBytes)
+                }
+                true
+            } == true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
         }
     }
 }
