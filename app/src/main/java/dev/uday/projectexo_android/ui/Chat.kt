@@ -1,23 +1,23 @@
 package dev.uday.projectexo_android.ui
 
+import android.content.Context
 import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -29,9 +29,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -66,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -77,8 +77,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.uday.projectexo_android.net.ClientSocket
+import dev.uday.projectexo_android.net.handlers.ImageHandler
 import dev.uday.projectexo_android.net.handlers.MsgHandler
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 
 object Chat {
     // Chat message data class
@@ -129,6 +131,19 @@ object Chat {
         val listState = rememberLazyListState()
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
+        val context = LocalContext.current
+
+        // Image picker launcher
+        val imagePicker = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.GetContent()
+        ) { uri: Uri? ->
+            uri?.let {
+                val imageBytes = getImageBytes(context, it)
+                imageBytes?.let { bytes ->
+                    ImageHandler.sendImage(bytes, selectedChat.value)
+                }
+            }
+        }
 
         // Current messages - extract outside composable functions for better performance
         val currentMessages = messages[selectedChat.value] ?: emptyList()
@@ -146,7 +161,7 @@ object Chat {
             drawerState = drawerState,
             gesturesEnabled = drawerState.isOpen,
             drawerContent = {
-                // Rest of drawer content remains the same
+                // Drawer content remains the same...
                 ModalDrawerSheet(
                     modifier = Modifier.width(280.dp)
                 ) {
@@ -224,18 +239,18 @@ object Chat {
                                     contentDescription = "Back"
                                 )
                             }
-                            Button(
-                                onClick = onLogout,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFB00020),
-                                )
-                            ){
-                                Text(
-                                    text = "Logout",
-                                    color = Color.White,
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                            }
+                            Text(
+                                text = "Logout",
+                                color = Color.White,
+                                modifier = Modifier
+                                    .background(
+                                        color = Color(0xFFB00020),
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    .clickable(onClick = onLogout),
+                                style = MaterialTheme.typography.labelMedium
+                            )
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -255,6 +270,18 @@ object Chat {
                                 .padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Image attachment button
+                            IconButton(
+                                onClick = { imagePicker.launch("image/*") },
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Attach Image",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+
                             OutlinedTextField(
                                 value = messageInput,
                                 onValueChange = { messageInput = it },
@@ -308,8 +335,8 @@ object Chat {
                             items = currentMessages.reversed(), // Reverse the list to show the newest messages at the bottom
                             key = { index, message -> "${message.timestamp}-${message.sender}-${index}" }
                         ) { _, message ->
-                            val messageKey = remember(message.timestamp, message.content) {
-                                "${message.timestamp}-${message.content}"
+                            val messageKey = remember(message.timestamp, message.content, message.imageData) {
+                                "${message.timestamp}-${message.content}-${message.imageData?.size}"
                             }
 
                             key(messageKey) {
@@ -319,6 +346,22 @@ object Chat {
                     }
                 }
             }
+        }
+    }
+
+    // Helper function to convert Uri to ByteArray
+    private fun getImageBytes(context: Context, uri: Uri): ByteArray? {
+        return try {
+            val inputStream = context.contentResolver.openInputStream(uri)
+            val bitmap = BitmapFactory.decodeStream(inputStream)
+            val outputStream = ByteArrayOutputStream()
+
+            // Compress with quality 80 to reduce size
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 80, outputStream)
+            outputStream.toByteArray()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
         }
     }
 
@@ -396,11 +439,13 @@ object Chat {
                         )
                     } else {
                         // Display text
-                        Text(
-                            text = message.content,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White
-                        )
+
+                            Text(
+                                text = message.content,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = textColor,
+                            )
+
                     }
                 }
 
