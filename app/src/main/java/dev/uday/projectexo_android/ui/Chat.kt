@@ -3,9 +3,7 @@ package dev.uday.projectexo_android.ui
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.BitmapFactory
-import android.media.MediaScannerConnection
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
@@ -87,8 +85,6 @@ import dev.uday.projectexo_android.net.handlers.ImageHandler
 import dev.uday.projectexo_android.net.handlers.MsgHandler
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FileOutputStream
 
 object Chat {
     data class ChatMessage(

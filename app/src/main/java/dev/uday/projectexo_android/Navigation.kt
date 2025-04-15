@@ -1,6 +1,7 @@
 package dev.uday.projectexo_android
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -21,6 +22,10 @@ object NavigationRoutes {
 fun AppNavigation() {
     val navController = rememberNavController()
     // Set up the navigation host with no animation
+
+    LaunchedEffect(navController) {
+        ClientSocket.setNavController(navController)
+    }
 
     NavHost(
         navController = navController,

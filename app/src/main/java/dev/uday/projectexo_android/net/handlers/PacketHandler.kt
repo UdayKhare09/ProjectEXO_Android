@@ -14,7 +14,20 @@ class PacketHandler {
                 1.toByte() -> MsgHandler.handleMsgPacket(packetData)
                 3.toByte() -> ImageHandler.handleImagePacket(packetData)
                 9.toByte() -> AIPackets.handleAIPacket(packetData)
+                10.toByte() -> handleHeartbeat(packetData)
                 else -> println("Unknown packet type: $packetType")
+            }
+        }
+
+        private fun handleHeartbeat(packetData: ByteArray) {
+            val heartbeat = packetData[0]
+            if (heartbeat == 1.toByte()) {
+                val packetData = ByteArray(2)
+                packetData[0] = 10.toByte()
+                packetData[1] = 1.toByte()
+                ClientSocket.sendPacket(packetData)
+            } else {
+                println("Invalid heartbeat packet")
             }
         }
 

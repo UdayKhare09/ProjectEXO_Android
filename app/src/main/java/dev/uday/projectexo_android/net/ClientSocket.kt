@@ -1,7 +1,14 @@
 package dev.uday.projectexo_android.net
 
+import android.annotation.SuppressLint
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.widget.Toast
+import androidx.navigation.NavController
+import dev.uday.projectexo_android.NavigationRoutes
 import dev.uday.projectexo_android.net.handlers.PacketHandler
+import dev.uday.projectexo_android.ui.Chat
 import kotlinx.coroutines.CoroutineScope
 import java.io.*
 import java.net.Socket
@@ -13,7 +20,6 @@ import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlin.math.ceil
 import kotlin.text.toInt
 
@@ -30,14 +36,18 @@ class ClientSocket {
         private var password: String = ""
         var onlineUsers = mutableListOf<String>()
 
+        // NavController to handle navigation on connection loss
+        @SuppressLint("StaticFieldLeak")
+        private var navController: NavController? = null
+
         // Connection state listeners
         private val connectionListeners = mutableListOf<(Boolean) -> Unit>()
 
         @Volatile
         private var isConnected = false
 
-        fun addConnectionListener(listener: (Boolean) -> Unit) {
-            connectionListeners.add(listener)
+        fun setNavController(controller: NavController) {
+            navController = controller
         }
 
         private fun notifyConnectionChange(connected: Boolean) {
@@ -204,7 +214,7 @@ class ClientSocket {
 
                     // Check if connection is lost
                     if (e is IOException) {
-                        disconnect()
+                        handleConnectionLoss("Connection lost. Please reconnect.")
                     }
                 }
             }
@@ -225,7 +235,7 @@ class ClientSocket {
                         val headerString = String(headerBytes)
 
                         // Parse header
-                        val totalSize = headerString.split(";")[0].split(":")[1].toInt()
+                        headerString.split(";")[0].split(":")[1].toInt()
                         val totalChunks = headerString.split(";")[1].split(":")[1].toInt()
 
                         // Read all chunks
@@ -243,7 +253,7 @@ class ClientSocket {
                         val decryptedBytes = completePacket.toByteArray()
                         // Process the packet
                         PacketHandler.handlePacket(decryptedBytes)
-                    } catch (e: EOFException) {
+                    } catch (_: EOFException) {
                         println("Connection closed by server")
                         break
                     } catch (e: Exception) {
@@ -256,8 +266,38 @@ class ClientSocket {
                     }
                 }
             } finally {
-                disconnect()
+                handleConnectionLoss("Connection to server lost. Please reconnect.")
             }
+        }
+
+        @SuppressLint("PrivateApi")
+        private fun handleConnectionLoss(message: String) {
+            disconnect()
+
+            // Clear chat messages
+            clearMessages()
+
+            // Show a toast and navigate back to login screen on the main thread
+            Handler(Looper.getMainLooper()).post {
+                // Use application context to avoid leaks if possible
+                android.app.Application.getProcessName()?.let { processName ->
+                    val context = Class.forName("android.app.ActivityThread")
+                        .getMethod("currentApplication")
+                        .invoke(null) as android.content.Context
+
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
+
+                // Navigate back to login screen if NavController is available
+                navController?.navigate(NavigationRoutes.LOGIN) {
+                    popUpTo(NavigationRoutes.LOGIN) { inclusive = true }
+                }
+            }
+        }
+
+        private fun clearMessages() {
+            // Clear all chat messages
+            Chat.messages.clear()
         }
 
         fun disconnect() {
@@ -270,10 +310,6 @@ class ClientSocket {
             } catch (e: Exception) {
                 println("Error during disconnect: ${e.message}")
             }
-        }
-
-        fun isConnected(): Boolean {
-            return isConnected && socket?.isConnected == true && !socket?.isClosed!!
         }
     }
 }
