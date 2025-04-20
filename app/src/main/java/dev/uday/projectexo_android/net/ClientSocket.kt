@@ -311,5 +311,32 @@ class ClientSocket {
                 println("Error during disconnect: ${e.message}")
             }
         }
+
+        @SuppressLint("PrivateApi")
+        fun disconnectDueToNetworkChange() {
+            if (isConnected) {
+                disconnect()
+
+                // Navigate back to login screen on the main thread
+                Handler(Looper.getMainLooper()).post {
+                    navController?.navigate(NavigationRoutes.LOGIN) {
+                        popUpTo(NavigationRoutes.LOGIN) { inclusive = true }
+                    }
+
+                    // Show toast notification
+                    android.app.Application.getProcessName()?.let { processName ->
+                        val context = Class.forName("android.app.ActivityThread")
+                            .getMethod("currentApplication")
+                            .invoke(null) as android.content.Context
+
+                        Toast.makeText(
+                            context,
+                            "Network connection changed. Please reconnect.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
     }
 }

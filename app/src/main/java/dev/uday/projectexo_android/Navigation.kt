@@ -1,8 +1,19 @@
 package dev.uday.projectexo_android
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
+import android.os.Build
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -21,7 +32,10 @@ object NavigationRoutes {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
-    // Set up the navigation host with no animation
+    val context = LocalContext.current
+
+    // Monitor network changes
+    NetworkMonitor(context)
 
     LaunchedEffect(navController) {
         ClientSocket.setNavController(navController)
@@ -77,6 +91,40 @@ class NavigationActions(private val navController: NavHostController) {
     fun navigateToLogin() {
         navController.navigate(NavigationRoutes.LOGIN) {
             popUpTo(NavigationRoutes.LOGIN) { inclusive = true }
+        }
+    }
+}
+
+
+@Composable
+fun NetworkMonitor(context: Context = LocalContext.current) {
+    // For Android 7.0 (N) and above
+    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+
+    DisposableEffect(Unit) {
+        val networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onLost(network: Network) {
+                super.onLost(network)
+                // Connection lost, disconnect the socket
+                ClientSocket.disconnectDueToNetworkChange()
+            }
+
+            override fun onUnavailable() {
+                super.onUnavailable()
+                // Network unavailable, disconnect the socket
+                ClientSocket.disconnectDueToNetworkChange()
+            }
+        }
+
+        // Register callback for all network types
+        val networkRequest = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+
+        connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+
+        onDispose {
+            connectivityManager.unregisterNetworkCallback(networkCallback)
         }
     }
 }

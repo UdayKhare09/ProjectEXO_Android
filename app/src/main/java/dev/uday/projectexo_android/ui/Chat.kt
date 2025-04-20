@@ -1,5 +1,6 @@
 package dev.uday.projectexo_android.ui
 
+import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.BitmapFactory
@@ -83,6 +84,8 @@ import androidx.compose.ui.unit.sp
 import dev.uday.projectexo_android.net.ClientSocket
 import dev.uday.projectexo_android.net.handlers.ImageHandler
 import dev.uday.projectexo_android.net.handlers.MsgHandler
+import dev.uday.projectexo_android.utils.SoundManager
+import dev.uday.projectexo_android.utils.rememberSoundManager
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 
@@ -100,7 +103,24 @@ object Chat {
     val messages = mutableStateMapOf<String, List<ChatMessage>>()
     private val onlineUsers = mutableStateListOf<String>()
 
+    @SuppressLint("PrivateApi")
     fun receiveMessage(sender: String, message: String, isPrivate: Boolean) {
+        // Get sound manager instance
+        val context = android.app.Application.getProcessName()?.let { processName ->
+            try {
+                Class.forName("android.app.ActivityThread")
+                    .getMethod("currentApplication")
+                    .invoke(null) as Context
+            } catch (e: Exception) {
+                null
+            }
+        }
+
+        context?.let {
+            SoundManager.getInstance(it).playMessageReceived()
+        }
+
+        // Existing message handling code
         val chatKey = if (isPrivate) sender else "general"
         val currentMessages = messages.getOrDefault(chatKey, emptyList())
         messages[chatKey] = currentMessages + ChatMessage(
@@ -134,6 +154,7 @@ object Chat {
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
+        val soundManager = rememberSoundManager()
 
         // Image picker launcher
         val imagePicker = rememberLauncherForActivityResult(
@@ -514,10 +535,15 @@ object Chat {
         )
     }
 
-    private fun sendMsg(messageInput: String, selectedChat: MutableState<String>) {
+    fun sendMsg(messageInput: String, selectedChat: MutableState<String>) {
         if (selectedChat.value != "AI") {
             if (messageInput.isNotBlank()) {
                 MsgHandler.sendMessage(messageInput, selectedChat.value)
+
+                // Get context and play sound
+                getApplicationContext()?.let { context ->
+                    SoundManager.getInstance(context).playMessageSent()
+                }
 
                 // Add outgoing message to local state
                 val chatKey = selectedChat.value
@@ -533,6 +559,23 @@ object Chat {
             }
         } else {
             sendAIMessage(messageInput)
+
+            // Get context and play sound
+            getApplicationContext()?.let { context ->
+                SoundManager.getInstance(context).playMessageSent()
+            }
+        }
+    }
+
+    // Helper method to get application context
+    @SuppressLint("PrivateApi")
+    private fun getApplicationContext(): Context? {
+        return try {
+            Class.forName("android.app.ActivityThread")
+                .getMethod("currentApplication")
+                .invoke(null) as? Context
+        } catch (e: Exception) {
+            null
         }
     }
 
