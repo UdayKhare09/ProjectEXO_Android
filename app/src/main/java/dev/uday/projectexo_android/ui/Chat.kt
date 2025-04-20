@@ -36,6 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.Badge
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -84,8 +85,8 @@ import androidx.compose.ui.unit.sp
 import dev.uday.projectexo_android.net.ClientSocket
 import dev.uday.projectexo_android.net.handlers.ImageHandler
 import dev.uday.projectexo_android.net.handlers.MsgHandler
+import dev.uday.projectexo_android.utils.NotificationHelper
 import dev.uday.projectexo_android.utils.SoundManager
-import dev.uday.projectexo_android.utils.rememberSoundManager
 import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 
@@ -102,22 +103,22 @@ object Chat {
     // Store messages by chat channel (user or "general")
     val messages = mutableStateMapOf<String, List<ChatMessage>>()
     private val onlineUsers = mutableStateListOf<String>()
+    val unreadCounts = mutableStateMapOf<String, Int>()
 
     @SuppressLint("PrivateApi")
     fun receiveMessage(sender: String, message: String, isPrivate: Boolean) {
-        // Get sound manager instance
-        val context = android.app.Application.getProcessName()?.let { processName ->
-            try {
-                Class.forName("android.app.ActivityThread")
-                    .getMethod("currentApplication")
-                    .invoke(null) as Context
-            } catch (e: Exception) {
-                null
-            }
-        }
+        // Get application context
+        val context = getApplicationContext()
 
+        // Play sound if the app is in foreground
         context?.let {
             SoundManager.getInstance(it).playMessageReceived()
+
+            // Show notification if not on the same chat
+            val chatKey = if (isPrivate) sender else "general"
+            if (currentSelectedChat.value != chatKey || !isAppInForeground(it)) {
+                NotificationHelper.showMessageNotification(it, sender, message, isPrivate)
+            }
         }
 
         // Existing message handling code
@@ -130,8 +131,35 @@ object Chat {
             isOutgoing = false,
             timestamp = System.currentTimeMillis()
         )
+
+        // Increment unread message count if not the current chat
+        if (currentSelectedChat.value != chatKey) {
+            unreadCounts[chatKey] = unreadCounts.getOrDefault(chatKey, 0) + 1
+        }
     }
 
+    // Check if app is in foreground
+    private fun isAppInForeground(context: Context): Boolean {
+        val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val appProcesses = activityManager.runningAppProcesses ?: return false
+        val packageName = context.packageName
+
+        for (appProcess in appProcesses) {
+            if (appProcess.importance == android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND
+                && appProcess.processName == packageName) {
+                return true
+            }
+        }
+        return false
+    }
+
+    // Add this to track the current selected chat
+    val currentSelectedChat = mutableStateOf("general")
+
+    // Add method to mark messages as read
+    fun markAsRead(chatKey: String) {
+        unreadCounts[chatKey] = 0
+    }
 
     fun updateOnlineUsers(users: List<String>) {
         onlineUsers.clear()
@@ -154,7 +182,6 @@ object Chat {
         val drawerState = rememberDrawerState(DrawerValue.Closed)
         val scope = rememberCoroutineScope()
         val context = LocalContext.current
-        val soundManager = rememberSoundManager()
 
         // Image picker launcher
         val imagePicker = rememberLauncherForActivityResult(
@@ -177,6 +204,7 @@ object Chat {
                     index = 0,
                     scrollOffset = 0,
                 )
+                markAsRead(selectedChat.value)
             }
         }
 
@@ -184,7 +212,6 @@ object Chat {
             drawerState = drawerState,
             gesturesEnabled = drawerState.isOpen,
             drawerContent = {
-                // Drawer content remains the same...
                 ModalDrawerSheet(
                     modifier = Modifier.width(280.dp)
                 ) {
@@ -202,10 +229,28 @@ object Chat {
                         HorizontalDivider(modifier = Modifier.padding(bottom = 8.dp))
 
                         NavigationDrawerItem(
-                            label = { Text("General") },
+                            label = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("General")
+                                    // Show badge if there are unread messages
+                                    val unreadCount = unreadCounts["general"] ?: 0
+                                    if (unreadCount > 0) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.error
+                                        ) {
+                                            Text(
+                                                text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                                                color = MaterialTheme.colorScheme.onError
+                                            )
+                                        }
+                                    }
+                                }
+                            },
                             selected = selectedChat.value == "general",
                             onClick = {
                                 selectedChat.value = "general"
+                                markAsRead("general")
                                 scope.launch { drawerState.close() }
                             },
                         )
@@ -221,13 +266,31 @@ object Chat {
                             items(onlineUsers) { user ->
                                 if (user != ClientSocket.username) {
                                     NavigationDrawerItem(
-                                        label = { Text(user) },
+                                        label = {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(user)
+                                                // Show badge if there are unread messages
+                                                val unreadCount = unreadCounts[user] ?: 0
+                                                if (unreadCount > 0) {
+                                                    Spacer(modifier = Modifier.width(8.dp))
+                                                    Badge(
+                                                        containerColor = MaterialTheme.colorScheme.error
+                                                    ) {
+                                                        Text(
+                                                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                                                            color = MaterialTheme.colorScheme.onError
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        },
                                         selected = selectedChat.value == user,
                                         onClick = {
                                             selectedChat.value = user
                                             if (!messages.containsKey(user)) {
                                                 messages[user] = emptyList()
                                             }
+                                            markAsRead(user)
                                             scope.launch { drawerState.close() }
                                         },
                                     )

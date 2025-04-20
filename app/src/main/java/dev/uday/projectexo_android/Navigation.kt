@@ -34,11 +34,20 @@ fun AppNavigation() {
     val navController = rememberNavController()
     val context = LocalContext.current
 
+    val currentChat = remember { Chat.currentSelectedChat }
+
     // Monitor network changes
     NetworkMonitor(context)
 
     LaunchedEffect(navController) {
         ClientSocket.setNavController(navController)
+    }
+
+    LaunchedEffect(currentChat.value) {
+        // If we have a selected chat and it's not "general", navigate to chat screen
+        if (currentChat.value != "general" && navController.currentDestination?.route != NavigationRoutes.CHAT) {
+            navController.navigate(NavigationRoutes.CHAT)
+        }
     }
 
     NavHost(
